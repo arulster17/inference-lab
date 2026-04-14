@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "inference-lab"
+version = "0.1.0"
+description = "LLM serving benchmark and optimization suite"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "rich>=13.7",
+    "pynvml>=11.5",
+    "datasets>=2.18",      # for ShareGPT workload
+    "transformers>=4.40",  # tokenizer for prompt token counts
+    "httpx>=0.27",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ipykernel",
+    "jupyterlab",
+    "plotly>=5.20",
+    "kaleido",             # plotly static export
+]
+
+[project.scripts]
+ilab = "inference_lab.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["inference_lab"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

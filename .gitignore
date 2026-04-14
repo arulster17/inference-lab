@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Results (can be large)
+results/
+!results/.gitkeep
+
+# Jupyter
+notebooks/.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+*.pem
+*.key
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
