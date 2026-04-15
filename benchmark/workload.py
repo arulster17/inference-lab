@@ -19,12 +19,12 @@ def synthetic_workload(
 def sharegpt_workload(
     num_requests: int,
     tokenizer: PreTrainedTokenizerBase,
-    ds: Dataset,
+    dataset: Dataset,
 ) -> list[tuple[str, int]]:
   
     
-    indices = random.sample(range(len(ds)), int(num_requests * 1.2)) # give some buffer in case we skip some chats
-    request_data = ds.select(indices)
+    indices = random.sample(range(len(dataset)), int(num_requests * 1.2)) # give some buffer in case we skip some chats
+    request_data = dataset.select(indices)
     results = []
     for data in request_data:
         if len(results) == num_requests:
