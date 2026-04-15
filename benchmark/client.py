@@ -86,7 +86,7 @@ async def run_benchmark(
     
     sem = asyncio.Semaphore(concurrency)
 
-    async def bounded_request(prompt, prompt_tokens, request_id):
+    async def bounded_request(prompt: str, prompt_tokens: int, request_id: str) -> RequestResult:
         async with sem:
             return await send_streaming_request(session=session, base_url=base_url, prompt=prompt, prompt_tokens=prompt_tokens, max_tokens=max_tokens, request_id=request_id)
         

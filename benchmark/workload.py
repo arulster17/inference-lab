@@ -1,9 +1,11 @@
 import random
+from transformers import PreTrainedTokenizerBase
+from datasets import Dataset
 
 def synthetic_workload(
     num_requests: int,
     prompt_len: int,        # tokens
-    tokenizer,
+    tokenizer: PreTrainedTokenizerBase,
 ) -> list[tuple[str, int]]:
     words = ["The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog"]
     prompt = " ".join(random.choices(words, k=prompt_len))
@@ -16,8 +18,8 @@ def synthetic_workload(
 
 def sharegpt_workload(
     num_requests: int,
-    tokenizer,
-    ds,
+    tokenizer: PreTrainedTokenizerBase,
+    ds: Dataset,
 ) -> list[tuple[str, int]]:
   
     
