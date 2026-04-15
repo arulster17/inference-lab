@@ -5,13 +5,14 @@ set -e
 sudo apt update
 sudo apt install -y git python3-pip
 
-# install vLLM
+# install vLLM and other necessary libraries
 pip install vllm
+pip install hf_transfer
 
 # install python dependencies
 pip install -r requirements.txt
 
 # log into huggingface for llama model
-huggingface-cli login
+hf auth login
 
 echo "Success!"
