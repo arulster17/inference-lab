@@ -40,7 +40,11 @@
 ---
 
 ## What we build (code)
-- `benchmark/client.py` — async SSE client
-- `benchmark/workload.py` — workload generator
-- `benchmark/metrics.py` — aggregation and stats
-- `serving/configs/baseline.yaml` — vLLM baseline config
+- `benchmark/client.py` — async SSE client ✓
+- `benchmark/workload.py` — workload generator ✓
+- `benchmark/metrics.py` — aggregation and stats ✓
+- `serving/configs/baseline.yaml` — vLLM server config
+- `serving/launch.py` — reads config YAML, starts vLLM with right args
+- `experiments/runner.py` — wires workload + client + metrics, saves results
+- `setup/install.sh` — Lambda Labs instance setup (CUDA, vLLM, HuggingFace)
+- `analysis/plot.py` — TTFT and ITL charts at 1/8/32/64 concurrency

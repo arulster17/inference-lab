@@ -25,6 +25,7 @@ notebooks/.ipynb_checkpoints/
 
 # Claude Code
 .claude/
+claude-briefs/
 
 # OS
 .DS_Store
