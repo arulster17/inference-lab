@@ -1,5 +1,4 @@
 import random
-from datasets import load_dataset
 
 def synthetic_workload(
     num_requests: int,
@@ -18,15 +17,12 @@ def synthetic_workload(
 def sharegpt_workload(
     num_requests: int,
     tokenizer,
+    ds,
 ) -> list[tuple[str, int]]:
   
-  
     
-    ds = load_dataset("json",
-        data_files="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
-        split="train")
-    
-    request_data = random.sample(ds, int(num_requests * 1.2)) # give some buffer in case we skip some chats
+    indices = random.sample(range(len(ds)), int(num_requests * 1.2)) # give some buffer in case we skip some chats
+    request_data = ds.select(indices)
     results = []
     for data in request_data:
         if len(results) == num_requests:
@@ -40,4 +36,3 @@ def sharegpt_workload(
         results.append((text, len(tokenizer.encode(text))))
 
     return results
-sharegpt_workload(0,None)
