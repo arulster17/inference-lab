@@ -71,7 +71,7 @@ def main():
     # hardcode config for now — we'll make this CLI-driven later
     config = {
         "base_url": "http://localhost:8000",
-        "model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "model": "meta-llama/Llama-3.1-8B-Instruct",
         "workload": "synthetic",
         "num_requests": 100,
         "prompt_len": 512,
@@ -79,7 +79,7 @@ def main():
         "concurrency": 1,
     }
     results = run_experiment(config)
-    save_results(results, "results/baseline_c1.json")
+    save_results(results, "results/llama_c1.json")
 
 if __name__ == "__main__":
     main()
