@@ -79,7 +79,7 @@ async def send_streaming_request(
 
 async def run_benchmark(
       base_url: str,
-      requests: list[tuple[str, int]],  # (prompt, prompt_tokens)
+      requests: list[tuple[str, int]],
       max_tokens: int,
       concurrency: int,
   ) -> list[RequestResult]:
@@ -92,9 +92,6 @@ async def run_benchmark(
         
     
     async with aiohttp.ClientSession() as session:
-        # build a list of tasks, one per request
-        # run them all with asyncio.gather
-        # return the results
         tasks = [bounded_request(pr[0], pr[1], f"req-{id}") for id, pr in enumerate(requests)]
         results = await asyncio.gather(*tasks)
         return results
