@@ -92,7 +92,7 @@ async def run_benchmark(
         
     
     async with aiohttp.ClientSession() as session:
-        tasks = [bounded_request(pr[0], pr[1], f"req-{id}") for id, pr in enumerate(requests)]
+        tasks = [bounded_request(pr[0], pr[1], f"req-{req_id}") for req_id, pr in enumerate(requests)]
         results = await asyncio.gather(*tasks)
         return results
         
