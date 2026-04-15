@@ -71,7 +71,7 @@ def main():
     # hardcode config for now — we'll make this CLI-driven later
     config = {
         "base_url": "http://localhost:8000",
-        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "model": "mistralai/Mistral-7B-Instruct-v0.3",
         "workload": "synthetic",
         "num_requests": 100,
         "prompt_len": 512,
