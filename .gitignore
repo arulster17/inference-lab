@@ -12,8 +12,8 @@ venv/
 env/
 
 # Results (can be large)
-results/
-!results/.gitkeep
+# results/
+# !results/.gitkeep
 
 # Jupyter
 notebooks/.ipynb_checkpoints/
