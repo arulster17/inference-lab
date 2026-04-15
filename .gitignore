@@ -15,6 +15,9 @@ env/
 # results/
 # !results/.gitkeep
 
+# Blog notes
+blogs/blognotes
+
 # Jupyter
 notebooks/.ipynb_checkpoints/
 
