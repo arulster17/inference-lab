@@ -13,6 +13,7 @@ pip install hf_transfer
 pip install -r requirements.txt
 
 # log into huggingface for llama model
+export $(cat .env)
 hf auth login --token $HF_TOKEN
 
 echo "Success!"
