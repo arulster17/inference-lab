@@ -1,6 +1,8 @@
 import asyncio
 import json
 import time
+import argparse
+
 from pathlib import Path
 
 from transformers import AutoTokenizer
@@ -68,7 +70,11 @@ def save_results(results: dict, output_path: str) -> None:
         json.dump(results, file)
 
 def main():
-    # hardcode config for now — we'll make this CLI-driven later
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--concurrency", type=int, required=True)
+    parser.add_argument("--output", type=str, required=True)
+    args = parser.parse_args()
+
     config = {
         "base_url": "http://localhost:8000",
         "model": "meta-llama/Llama-3.1-8B-Instruct",
@@ -76,10 +82,11 @@ def main():
         "num_requests": 100,
         "prompt_len": 512,
         "max_tokens": 256,
-        "concurrency": 1,
+        "concurrency": args.concurrency
     }
+    
     results = run_experiment(config)
-    save_results(results, "results/llama_c1.json")
+    save_results(results, args.output)
 
 if __name__ == "__main__":
     main()
