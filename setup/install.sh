@@ -2,8 +2,8 @@
 set -e
 
 # update apt and basic system deps
-sudo apt update
-sudo apt install -y git python3-pip
+apt update
+apt install -y git python3-pip vim
 
 # install vLLM and other necessary libraries
 pip install vllm
