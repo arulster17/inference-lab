@@ -19,7 +19,7 @@ def build_command(config: dict) -> list[str]:
     
     return command
 
-def wait_for_server(base_url: str, timeout_s: int = 120):
+def wait_for_server(base_url: str, timeout_s: int = 300):
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
