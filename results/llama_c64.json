@@ -1,1 +1,24 @@
-{"config": {"base_url": "http://localhost:8000", "model": "meta-llama/Llama-3.1-8B-Instruct", "workload": "synthetic", "num_requests": 100, "prompt_len": 512, "max_tokens": 256, "concurrency": 64}, "metrics": {"ttft_p50": 0.16674679308198392, "ttft_p95": 0.22577699467074125, "ttft_p99": 0.24715666614007206, "itl_p50": 0.014543069992214441, "itl_p95": 0.022811166942119595, "itl_p99": 0.024494517305865885, "throughput_rps": 30.48202690842642, "throughput_tps": 2254.145889878134, "error_rate": 0.0, "total_requests": 100, "successful_requests": 100}}
+{
+  "config": {
+    "base_url": "http://localhost:8000",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "workload": "synthetic",
+    "num_requests": 100,
+    "prompt_len": 512,
+    "max_tokens": 256,
+    "concurrency": 64
+  },
+  "metrics": {
+    "ttft_p50": 0.16674679308198392,
+    "ttft_p95": 0.22577699467074125,
+    "ttft_p99": 0.24715666614007206,
+    "itl_p50": 0.014543069992214441,
+    "itl_p95": 0.022811166942119595,
+    "itl_p99": 0.024494517305865885,
+    "throughput_rps": 30.48202690842642,
+    "throughput_tps": 2254.145889878134,
+    "error_rate": 0,
+    "total_requests": 100,
+    "successful_requests": 100
+  }
+}
