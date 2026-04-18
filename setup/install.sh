@@ -14,6 +14,6 @@ pip install -r requirements.txt
 
 # log into huggingface for llama model
 export $(cat .env)
-hf auth login --token $HF_TOKEN
+hf auth login
 
 echo "Success!"
