@@ -79,7 +79,7 @@ def main():
         "base_url": "http://localhost:8000",
         "model": "meta-llama/Llama-3.1-8B-Instruct",
         "workload": "synthetic",
-        "num_requests": 100,
+        "num_requests": 512,
         "prompt_len": 512,
         "max_tokens": 256,
         "concurrency": args.concurrency
