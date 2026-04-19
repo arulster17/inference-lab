@@ -1,17 +1,17 @@
 """
 Smoke test — send one streaming request to a running vLLM server.
-Usage: python scripts/test_request.py --base-url http://localhost:8000
+Usage: python scripts/test_request.py --base-url http://localhost:8000/v1
 """
 
 import argparse
 from openai import OpenAI
 
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-PROMPT = "Explain what a large language model is in 3 sentences."
+PROMPT = "Explain in 2 sentences why programmers use Hello World in test programs."
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", type=str, default="http://localhost:8000")
+    parser.add_argument("--base-url", type=str, default="http://localhost:8000/v1")
     args = parser.parse_args()
 
     client = OpenAI(base_url=args.base_url, api_key="dummy")
