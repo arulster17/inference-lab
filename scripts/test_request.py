@@ -7,7 +7,7 @@ import argparse
 from openai import OpenAI
 
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-PROMPT = "Explain in 2 sentences why programmers use Hello World in test programs."
+PROMPT = "Explain what a large language model is in 3 sentences."
 
 def main():
     parser = argparse.ArgumentParser()
@@ -23,14 +23,11 @@ def main():
     )
 
     for chunk in stream:
-          token = chunk.choices[0].delta.content
-          if token:
-              print(token, end="", flush=True)
-    
+        token = chunk.choices[0].delta.content
+        if token:
+            print(token, end="", flush=True)
+
     print()
-
-    pass
-
 
 if __name__ == "__main__":
     main()
