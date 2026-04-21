@@ -14,6 +14,10 @@ pip install -r requirements.txt
 
 # log into huggingface for llama model
 export $(cat .env)
+echo 'export HF_HUB_ENABLE_HF_TRANSFER=1' >> ~/.bashrc
+echo 'export HF_HOME=/workspace/hf_cache' >> ~/.bashrc
+source ~/.bashrc
+
 hf auth login --token $HF_TOKEN
 
 echo "Success!"
