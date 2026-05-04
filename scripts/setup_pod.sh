@@ -11,7 +11,7 @@ if [ -z "$IP" ] || [ -z "$PORT" ]; then
 fi
 
 echo "Cloning repo..."
-ssh root@$IP -p $PORT -i $KEY "git clone https://github.com/arulster17/inference-lab.git && cd inference-lab && git switch blog/01-baseline"
+ssh root@$IP -p $PORT -i $KEY "git clone https://github.com/arulster17/inference-lab.git && cd inference-lab"
 
 echo "Copying .env..."
 scp -P $PORT -i $KEY C:/Users/Arul/Projects/inference-lab/.env root@$IP:~/inference-lab/
