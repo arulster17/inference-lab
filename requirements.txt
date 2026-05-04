@@ -1,4 +1,6 @@
 aiohttp>=3.9
+openai>=1.0
+requests>=2.31
 numpy>=1.26
 pandas>=2.2
 matplotlib>=3.8

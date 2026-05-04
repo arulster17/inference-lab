@@ -18,13 +18,14 @@ class RequestResult:
 async def send_streaming_request(
     session: aiohttp.ClientSession,
     base_url: str,
+    model: str,
     prompt: str,
     prompt_tokens: int,
     max_tokens: int,
     request_id: str,
 ) -> RequestResult:
     payload = {
-        "model": "...",          # we'll make this configurable later
+        "model": model,          # we'll make this configurable later
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
         "stream": True,
@@ -79,6 +80,7 @@ async def send_streaming_request(
 
 async def run_benchmark(
       base_url: str,
+      model: str,
       requests: list[tuple[str, int]],
       max_tokens: int,
       concurrency: int,
@@ -88,7 +90,13 @@ async def run_benchmark(
 
     async def bounded_request(prompt: str, prompt_tokens: int, request_id: str) -> RequestResult:
         async with sem:
-            return await send_streaming_request(session=session, base_url=base_url, prompt=prompt, prompt_tokens=prompt_tokens, max_tokens=max_tokens, request_id=request_id)
+            return await send_streaming_request(session=session, 
+                                                base_url=base_url,
+                                                model=model,
+                                                prompt=prompt, 
+                                                prompt_tokens=prompt_tokens, 
+                                                max_tokens=max_tokens, 
+                                                request_id=request_id)
         
     
     async with aiohttp.ClientSession() as session:
