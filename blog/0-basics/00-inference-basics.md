@@ -1,3 +1,19 @@
+POSTED
+LINK: https://medium.com/@arulster17/inference-basics-and-why-model-serving-is-hard-51814cb6b069
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Blog 0: LLM Inference Basics
 
 **Status:** Draft
