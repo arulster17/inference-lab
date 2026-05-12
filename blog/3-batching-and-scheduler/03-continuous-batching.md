@@ -4,23 +4,28 @@
     
 # Continuous Batching and the Scheduler
 
-In the previous post, we discussed how PagedAttention solved GPU memory fragmentation by splitting the KV cache into fixed-size blocks that can be scattered across physical memory. With PagedAttention, we can now handle far more concurrent requests in GPU memory at once. Unfortunately, memory capacity is only half the problem. To keep the GPU utilized at all times, we need to decide which requests to group together and in what order to run them.
+In the previous post, we discussed how vLLM's PagedAttention system solved GPU memory fragmentation by splitting the KV cache into fixed-size blocks that could be scattered across physical memory. With PagedAttention, we can now handle far more concurrent requests in GPU memory at once. Unfortunately, memory capacity is only half of the problem. To keep the GPU utilized at all times, we need to decide which requests to group together and in what order to run them.
 
 ---
 
 ## Naive Batching
 
-The straightforward approach to batching is to collect a group of requests, process them together until all of them finish, then start the next batch. This is much better than processing one request at a time, since the GPU can work on multiple requests in parallel. However, this approach runs into two big problems. First, requests arrive at different times. Since a naive strategy waits until it has enough requests to fill the batch, early requests sit idle, increasing their *time-to-first-token* (**TTFT**). Second, requests can have very different input and output lengths, so a naive batcher has to pad the inputs and outputs of the requests to normalize the lengths, which wastes GPU compute and memory.
+The straightforward approach to batching is to collect a group of requests, process them together until all of them finish, then start the next batch. This is much better than processing one request at a time, since the GPU can work on multiple requests in parallel. However, this approach runs into two big problems. First, requests arrive at different times. Since a naive strategy waits until it has enough requests to fill the batch, early requests are forced to wait, increasing their *time-to-first-token* (**TTFT**). Second, requests have very different input and output lengths, so a naive batcher pads each request to match the longest, which wastes GPU compute. Furthermore, since a batch can't finish until its longest request is done, even more GPU compute goes to waste once shorter requests are finished.
 
-Suppose A, B, C, and D arrive in that order. A arrives first and waits 150 steps for the batch to fill — those 150 steps add directly to its TTFT. B waits 100 steps, C waits 50, and D arrives last and triggers the batch to start. Once processing begins, A generates 50 tokens, B generates 100, C generates 200, and D generates 500. A finishes quickly but its slot sits idle for 450 steps while D keeps running. Any request arriving after the batch starts has to wait for all 500 of D's steps before it can begin, also hurting TTFT.
+Figure 1 shows four requests with different lengths arriving at different times. Request A arrives first but has to wait for 300 steps for the batch to fill up. Request D arrives last and generates the most tokens, keeping the batch active until step 500, long after the others have finished.
 
-[image]
+insert static batch image here
+caption: Figure 1: Naive batching with four requests of varying arrival times and generation lengths.
 
 ---
 
-## Iteration-Level Scheduling
+## Continuous batching
 
-**Continuous batching** fixes this by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it operates on individual forward passes. After each forward pass, completed requests are immediately removed from the batch and new ones are added.
+**Continuous batching** solves both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it processes one forward pass of all requests in the batch at a time, after which completed requests are dropped and new requests are added. Furthermore, custom GPU kernels allow sequences of different lengths to be processed in the same forward pass, eliminating the need for padding. With this strategy, the GPU is now almost always doing useful work. Requests that finish quickly free their slots immediately, and the slots are filled by the next available request rather than sitting idle. 
+
+Figure 2 shows the same four requests arriving at the same time
+
+**Continuous batching** fixes both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it operates on individual forward passes. After each forward pass, completed requests are immediately removed from the batch and new ones are added. With custom GPU kernels, requests no longer need to be padded to equal lengths, eliminating that source of waste as well.
 
 The result is that the GPU is always doing useful work. Fast requests that finish early free their slots right away, and those slots are filled by the next waiting request rather than sitting idle. A new request only has to wait for a single forward pass before it can be admitted, rather than waiting for an entire batch to complete. The vLLM paper reports 2-4x higher throughput compared to prior systems like FasterTransformer and Orca, largely because GPU utilization stays consistently high.
 
