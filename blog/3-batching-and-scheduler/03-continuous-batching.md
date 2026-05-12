@@ -23,21 +23,20 @@ caption: Figure 1: Naive batching with four requests of varying arrival times an
 
 **Continuous batching** solves both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it processes one forward pass of all requests in the batch at a time, after which completed requests are dropped and new requests are added. Furthermore, custom GPU kernels allow sequences of different lengths to be processed in the same forward pass, eliminating the need for padding. With this strategy, the GPU is now almost always doing useful work. Requests that finish quickly free their slots immediately, and the slots are filled by the next available request rather than sitting idle. 
 
-Figure 2 shows the same four requests arriving at the same time
+Figure 2 shows the four requests arriving at the same staggered times. As each request finishes, its slot is freed immediately and filled by the next waiting request.
 
-**Continuous batching** fixes both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it operates on individual forward passes. After each forward pass, completed requests are immediately removed from the batch and new ones are added. With custom GPU kernels, requests no longer need to be padded to equal lengths, eliminating that source of waste as well.
+insert continuous batch image here
+caption: Figure 2: Continuous batching with four requests of varying arrival times and generation lengths.
 
-The result is that the GPU is always doing useful work. Fast requests that finish early free their slots right away, and those slots are filled by the next waiting request rather than sitting idle. A new request only has to wait for a single forward pass before it can be admitted, rather than waiting for an entire batch to complete. The vLLM paper reports 2-4x higher throughput compared to prior systems like FasterTransformer and Orca, largely because GPU utilization stays consistently high.
-
----
 
 ## Prefill vs. Decode
 
-Continuous batching introduces a new complication. Requests in the active batch are in one of two phases:
+Continuous batching introduces a new problem. The requests in the active batch can be in one of two phases:
 
-- **Prefill**: the model processes the entire input prompt in a single forward pass. This step is compute-bound, since many tokens are processed in parallel, giving the GPU's arithmetic units a lot of work per step.
-- **Decode**: the model generates one new token per forward pass, reading the full KV cache of all previous tokens on each step. This step is memory-bandwidth-bound, since the bottleneck is how fast the GPU can move data from memory to compute.
+- **Prefill**: the model processes the entire input prompt in a single forward pass. This step is compute-bound, as many tokens are processed in parallel, meaning that GPU's arithmetic units are the bottlenecks.
 
+- **Decode**: the model generates one new token per forward pass after reading through the KV cache of all previous tokens. This step is memory-bandwidth-bound, since the bottleneck is how fast the GPU can move data from memory to compute.
+- 
 These two phases have very different resource profiles. A prefill step for a long prompt does a large amount of arithmetic in a single pass. A decode step does very little arithmetic but needs to touch a lot of memory.
 
 When both are mixed in the same batch, prefill dominates. For a decode request that is mid-generation, a forward pass that would normally complete in a few milliseconds can take significantly longer because a newly admitted request's long prompt is being processed in the same step. The decode request's next token is delayed, causing a spike in ITL. Ongoing decode requests pay a "prefill tax" every time a new request joins the batch.
