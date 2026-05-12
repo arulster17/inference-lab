@@ -21,9 +21,9 @@ caption: Figure 1: Naive batching with four requests of varying arrival times an
 
 ## Continuous batching
 
-**Continuous batching** solved both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it does a single forward pass of all requests in the batch. After each pass, completed requests are removed from the batch, and new requests are added. With custom GPU 
+**Continuous batching** solves both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it processes one forward pass of all requests in the batch at a time, after which completed requests are dropped and new requests are added. Furthermore, custom GPU kernels allow sequences of different lengths to be processed in the same forward pass, eliminating the need for padding. With this strategy, the GPU is now almost always doing useful work. Requests that finish quickly free their slots immediately, and the slots are filled by the next available request rather than sitting idle. 
 
-
+Figure 2 shows the same four requests arriving at the same time
 
 **Continuous batching** fixes both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it operates on individual forward passes. After each forward pass, completed requests are immediately removed from the batch and new ones are added. With custom GPU kernels, requests no longer need to be padded to equal lengths, eliminating that source of waste as well.
 
