@@ -10,9 +10,9 @@ In the previous post, we discussed how vLLM's PagedAttention system solved GPU m
 
 ## Naive Batching
 
-The straightforward approach to batching is to collect a group of requests, process them together until all of them finish, then start the next batch. This is much better than processing one request at a time, since the GPU can work on multiple requests in parallel. However, this approach runs into two big problems. First, requests arrive at different times. Since a naive strategy waits until it has enough requests to fill the batch, early requests are forced to wait, increasing their *time-to-first-token* (**TTFT**). Second, requests have very different input and output lengths, so a naive batcher pads each request to match the longest, which wastes GPU compute. Furthermore, since a batch can't finish until its longest request is done, even more GPU compute goes to waste once shorter requests are finished.
+The straightforward approach to batching is to collect a group of requests, process them together until all of them finish, then start the next batch. This is much better than processing one request at a time, since the GPU can work on multiple requests in parallel. However, this approach runs into two big problems. First, requests arrive at different times. Since a naive strategy waits until it has enough requests to fill the batch, early requests are forced to wait, increasing their *time-to-first-token (TTFT)*. Second, requests have very different input and output lengths, so a naive batcher pads each request to match the longest, which wastes GPU compute. Furthermore, since a batch can't finish until its longest request is done, even more GPU compute goes to waste once shorter requests are finished.
 
-Figure 1 shows four requests with different lengths arriving at different times. Request A arrives first but has to wait for 300 steps for the batch to fill up. Request D arrives last and generates the most tokens, keeping the batch active until step 500, long after the others have finished.
+Figure 1 shows four requests with different lengths arriving at different times. Request A arrives first but has to wait for 300 steps for the batch to fill up. Request D arrives last and generates the most tokens, keeping the batch active until step 500, long after the other three requests have finished.
 
 insert static batch image here
 caption: Figure 1: Naive batching with four requests of varying arrival times and generation lengths.
@@ -21,7 +21,7 @@ caption: Figure 1: Naive batching with four requests of varying arrival times an
 
 ## Continuous batching
 
-**Continuous batching** solves both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it processes one forward pass of all requests in the batch at a time, after which completed requests are dropped and new requests are added. Furthermore, custom GPU kernels allow sequences of different lengths to be processed in the same forward pass, eliminating the need for padding. With this strategy, the GPU is now almost always doing useful work. Requests that finish quickly free their slots immediately, and the slots are filled by the next available request rather than sitting idle. 
+**Continuous batching** solves both of these problems by scheduling at the iteration level rather than the request level. Instead of waiting for an entire batch to finish, it processes one forward pass of all requests in the batch at a time, after which completed requests are dropped and new requests are added. Furthermore, custom GPU kernels allow sequences of different lengths to be processed in the same forward pass, eliminating the need for padding. With this strategy, the GPU is now almost always doing useful work. Requests that finish free their slots immediately, and the slots are filled by the next available request rather than sitting idle.
 
 Figure 2 shows the four requests arriving at the same staggered times. As each request finishes, its slot is freed immediately and filled by the next waiting request.
 
@@ -29,49 +29,33 @@ insert continuous batch image here
 caption: Figure 2: Continuous batching with four requests of varying arrival times and generation lengths.
 
 
-## Prefill vs. Decode
+## The vLLM Scheduler and Preemption
 
-Continuous batching introduces a new problem. The requests in the active batch can be in one of two phases:
+vLLM's scheduler uses a simple *first-come, first-served (FCFS)* priority queue, only admitting a new request when there is enough free memory for its initial KV cache blocks. However, since this check only covers a request's initial allocation and output lengths are not known in advance, memory pressure can build up as active requests keep generating tokens and expanding their KV caches. If available blocks run out, vLLM *preempts* the lowest-priority request (usually the most recent arrival), freeing its physical blocks to make room for the rest. The preempted request is handled using one of two strategies: 
 
-- **Prefill**: the model processes the entire input prompt in a single forward pass. This step is compute-bound, as many tokens are processed in parallel, meaning that GPU's arithmetic units are the bottlenecks.
+- *Swap*: vLLM writes the request's KV cache blocks to CPU RAM and restores them later. This preserves the work done but costs memory bandwidth.
+- *Recompute*: vLLM discards the KV cache and reruns prefill from scratch when the request is rescheduled. This avoids the bandwidth cost but wastes completed computation.
 
-- **Decode**: the model generates one new token per forward pass after reading through the KV cache of all previous tokens. This step is memory-bandwidth-bound, since the bottleneck is how fast the GPU can move data from memory to compute.
-- 
-These two phases have very different resource profiles. A prefill step for a long prompt does a large amount of arithmetic in a single pass. A decode step does very little arithmetic but needs to touch a lot of memory.
+Both operations are costly and greatly spike the preempted request's latency, so the scheduler tries to avoid preemption by being conservative with request admission. vLLM V1 defaults to recompute over swap has a lower overhead in the V1 architecture than swap.
 
-When both are mixed in the same batch, prefill dominates. For a decode request that is mid-generation, a forward pass that would normally complete in a few milliseconds can take significantly longer because a newly admitted request's long prompt is being processed in the same step. The decode request's next token is delayed, causing a spike in ITL. Ongoing decode requests pay a "prefill tax" every time a new request joins the batch.
+## Chunked Prefill
 
-This creates a real tension. Starting new requests quickly keeps TTFT low, which is good for the user experience of those requests. But starting them means running prefill alongside decode, which inflates ITL for everyone already in the batch. A good scheduler has to manage this tradeoff continuously.
+Every request in the batch goes through two distinct phases:
 
----
+- **Prefill**: the model processes the entire input prompt in a single forward pass. This step is compute-bound, since many tokens are processed in parallel, giving the GPU's arithmetic units a lot of work per step.
+- **Decode**: the model generates one new token per forward pass, reading the full KV cache of all previous tokens on each step. This step is memory-bandwidth-bound, since the bottleneck is how fast the GPU can move data from memory to compute.
 
-## The vLLM Scheduler
+When a new request's prefill runs in the same forward pass as existing decode steps, it dominates the runtime of the pass, delaying the next token for all decode requests in the batch and causing a spike in ITL.
 
-vLLM's scheduler uses a *first-come, first-served (FCFS)* priority queue. Incoming requests are queued in order of arrival. At each step, the scheduler decides which requests run in the next forward pass based on a memory budget.
+**Chunked prefill** solves this by limiting how many prefill tokens can enter the batch per step. The scheduler operates on a total token budget per forward pass (`max_num_batched_tokens`). At each step, vLLM first schedules all pending decode requests, then fills the remaining budget with prefill requests. If a waiting prefill request does not fit in the remaining token budget, vLLM chunks it and runs the appropriate chunk in the pass. With this system, decode requests are always prioritized, and the cost of a prefill request is spread across multiple steps instead of hitting one forward pass.
 
-Requests already in the decode phase have priority. They are holding physical KV cache blocks and making progress toward completion. Preempting them to admit new prefill requests would waste the work already done and introduce unnecessary latency spikes. New requests waiting in the queue are only admitted when there is enough free memory to store their initial KV cache blocks.
+Mixing compute-bound prefill chunks with memory-bandwidth-bound decode steps in the same pass also has the benefit of higher GPU utilization, as the GPU's compute units and memory are both kept busy in each pass.
 
-Occasionally, a spike in concurrent traffic can push memory pressure high enough that the scheduler can't fit all active decode requests at once. In this case, vLLM *preempts* the lowest-priority request, freeing its physical blocks to make room for the rest. It has two strategies for handling the preempted request:
+The main tradeoff here is TTFT. A new request's prefill can now span multiple steps instead of being processed in one pass. We can tune `max_num_batched_tokens` to balance ITL and TTFT; smaller values reduce ITL by limiting how much prefill can run alongside decode, while larger values improve TTFT by processing more prefill tokens per step.
 
-- *Swap*: write the request's KV cache blocks from GPU memory to CPU RAM, then swap them back in later when memory becomes available. This preserves the work done so far but costs CPU-GPU bandwidth.
-- *Recompute*: discard the KV cache entirely and rerun the prefill from scratch when the request is rescheduled. This wastes the computation already done but avoids the bandwidth cost of swapping.
+The improvement to ITL is significant enough that chunked prefill is enabled by default in vLLM V1 whenever possible.
 
-Both strategies carry a cost. The scheduler tries to avoid preemption altogether by being conservative about how many requests it admits at each step. In practice, preemption is relatively rare under steady traffic, but it is a necessary safety valve for bursty workloads.
 
----
+## What's next?
 
-## The Throughput/Latency Tradeoff
-
-Even with continuous batching, there is an irreducible tradeoff between throughput and latency.
-
-To maximize throughput, we want as many requests in flight as possible. More concurrent requests means more tokens generated per second. But more concurrent requests also means longer queues, higher memory pressure, and potentially more prefill-decode interference, all of which push TTFT and ITL higher.
-
-To minimize latency, we want to start new requests immediately and keep the active batch small. But a smaller batch means the GPU is doing less work per forward pass, and throughput falls.
-
-The prefill tax sharpens this tradeoff. A straightforward fix is to break up long prefill steps into smaller chunks, each processed in a separate forward pass, so that no single prefill step can dominate a batch. This caps the interference between new and in-progress requests without requiring us to delay new ones entirely. This is the idea behind *chunked prefill*, which we will cover in a later post.
-
----
-
-## What's next
-
-We have now covered the three core ideas behind vLLM: PagedAttention for memory efficiency, and continuous batching plus scheduling for compute utilization. Before going further into optimizations, the next post puts all of this into practice. We will set up a vLLM instance, run a proper benchmark, and measure TTFT, ITL, and throughput at different concurrency levels to build a concrete baseline for what the system actually looks like in numbers.
+We have now explored how vLLM addresses all three problems described in the first post: PagedAttention for memory, continuous batching for GPU utilization, and a scheduler with chunked prefill to manage latency. In the next post, we will put these concepts into practice: we will set up a vLLM instance on a cloud GPU, measure how TTFT, ITL, and throughput, and build a baseline for the optimizations ahead.
