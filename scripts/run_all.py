@@ -18,6 +18,7 @@ scp = ["scp", "-P", port, "-i", key]
 
 print(f"Starting full experiment pipeline on {ip}:{port}")
 
+run("Clearing old files on pod...",   ssh + ["rm -rf inference-lab"])
 run("Cloning repo on pod...",         ssh + ["git clone --branch 04-baseline https://github.com/arulster17/inference-lab.git"])
 run("Copying .env to pod...",         scp + [".env", f"root@{ip}:~/inference-lab/"])
 run("Installing dependencies...",     ssh + ["cd inference-lab && bash setup/install.sh"])
