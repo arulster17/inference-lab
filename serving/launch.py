@@ -15,7 +15,8 @@ def build_command(config: dict) -> list[str]:
         if key == 'model':
             continue
         if isinstance(val, bool):
-              command.append(f"--{'no-' if not val else ''}{key}")
+            command.append(f"--{'no-' if not val else ''}{key}")
+            continue
         command.append("--" + key)
         command.append(str(val))
     
