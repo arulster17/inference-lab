@@ -14,12 +14,14 @@ def build_command(config: dict) -> list[str]:
     for key,val in config.items():
         if key == 'model':
             continue
+        if isinstance(val, bool):
+              command.append(f"--{'no-' if not val else ''}{key}")
         command.append("--" + key)
         command.append(str(val))
     
     return command
 
-def wait_for_server(base_url: str, timeout_s: int = 300):
+def wait_for_server(base_url: str, timeout_s: int = 60):
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
