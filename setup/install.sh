@@ -6,7 +6,7 @@ apt update
 apt install -y git python3-pip vim
 
 # install vLLM and other necessary libraries
-pip install vllm
+# pip install vllm
 pip install hf_transfer
 
 # install python dependencies
