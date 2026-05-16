@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 RESULT_FILES = {
-    1:  "results/llama_c1.json",
-    8:  "results/llama_c8.json",
-    32: "results/llama_c32.json",
-    64: "results/llama_c64.json",
+    1:  "results/results_clean/llama_c1.json",
+    8:  "results/results_clean/llama_c8.json",
+    32: "results/results_clean/llama_c32.json",
+    64: "results/results_clean/llama_c64.json",
 }
 
 def load_results() -> dict:
