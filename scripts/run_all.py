@@ -16,7 +16,7 @@ ip  = sys.argv[1]
 port = sys.argv[2]
 key = "~/.ssh/id_ed25519"
 
-ssh = ["ssh", "t", f"root@{ip}", "-p", port, "-i", key]
+ssh = ["ssh", "-t", f"root@{ip}", "-p", port, "-i", key]
 scp = ["scp", "-P", port, "-i", key]
 
 print(f"Starting full experiment pipeline on {ip}:{port}")
