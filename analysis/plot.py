@@ -1,29 +1,25 @@
 import json
 import matplotlib.pyplot as plt
 from pathlib import Path
+import argparse
 
-RESULT_FILES = {
-    1:  "results/results_clean/llama_c1.json",
-    8:  "results/results_clean/llama_c8.json",
-    32: "results/results_clean/llama_c32.json",
-    64: "results/results_clean/llama_c64.json",
-}
 
-def load_results() -> dict:
+def load_results(results_dir: str) -> dict:
     # load each file, return dict of {concurrency: metrics}
     results = {}
-    for concurrency, path in RESULT_FILES.items():
+    for path in sorted(Path(results_dir).glob("*.json")):                                                                      
         with open(path) as f:
             result = json.load(f)
-            results[concurrency] = result["metrics"]
+        c = result["config"]["concurrency"]
+        results[c] = result["metrics"]
     return results
 
 def plot_ttft(ax, data: dict):
     # plot p50, p95, p99 lines vs concurrency on ax
-    x = ["1", "8", "32", "64"]
-    ax.plot(x, [data[c]["ttft_p50"] * 1000 for c in [1, 8, 32, 64]], label="p50")
-    ax.plot(x, [data[c]["ttft_p95"] * 1000 for c in [1, 8, 32, 64]], label="p95")
-    ax.plot(x, [data[c]["ttft_p99"] * 1000 for c in [1, 8, 32, 64]], label="p99")
+    x = sorted(data.keys())
+    ax.plot(x, [data[c]["ttft_p50"] * 1000 for c in x], label="p50")
+    ax.plot(x, [data[c]["ttft_p95"] * 1000 for c in x], label="p95")
+    ax.plot(x, [data[c]["ttft_p99"] * 1000 for c in x], label="p99")
 
     ax.set_xlabel("Concurrency")
     ax.set_ylabel("TTFT (ms)")
@@ -33,10 +29,10 @@ def plot_ttft(ax, data: dict):
 
 def plot_itl(ax, data: dict):
     # plot p50, p95, p99 lines vs concurrency on ax
-    x = ["1", "8", "32", "64"]
-    ax.plot(x, [data[c]["itl_p50"] * 1000 for c in [1, 8, 32, 64]], label="p50")
-    ax.plot(x, [data[c]["itl_p95"] * 1000 for c in [1, 8, 32, 64]], label="p95")
-    ax.plot(x, [data[c]["itl_p99"] * 1000 for c in [1, 8, 32, 64]], label="p99")
+    x = sorted(data.keys())
+    ax.plot(x, [data[c]["itl_p50"] * 1000 for c in x], label="p50")
+    ax.plot(x, [data[c]["itl_p95"] * 1000 for c in x], label="p95")
+    ax.plot(x, [data[c]["itl_p99"] * 1000 for c in x], label="p99")
 
     ax.set_xlabel("Concurrency")
     ax.set_ylabel("ITL (ms)")
@@ -47,7 +43,7 @@ def plot_itl(ax, data: dict):
 
 def plot_throughput(ax, data: dict):
     # plot p50, p95, p99 lines vs concurrency on ax
-    x = [1, 8, 32, 64]
+    x = sorted(data.keys())
     ax.plot(x, [data[c]["throughput_tps"] for c in x], marker='o')
 
     ax.set_xlabel("Concurrency")
@@ -57,7 +53,10 @@ def plot_throughput(ax, data: dict):
 
 
 def main():
-    data = load_results()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--results", type=str, required=True)
+    args = parser.parse_args()
+    data = load_results(args.results)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     plot_ttft(ax1, data)
     plot_itl(ax2, data)

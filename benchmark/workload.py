@@ -8,12 +8,15 @@ def synthetic_workload(
     tokenizer: PreTrainedTokenizerBase,
 ) -> list[tuple[str, int]]:
     words = ["The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog"]
-    prompt = " ".join(random.choices(words, k=prompt_len))
-    enc = tokenizer.encode(prompt)
-    cut = enc[:prompt_len]
-    dec = tokenizer.decode(cut)
 
-    return [(dec, len(cut)) for _ in range(num_requests)]
+    results = []
+    for i in range(num_requests):
+        prompt = " ".join(random.choices(words, k=prompt_len))
+        enc = tokenizer.encode(prompt)
+        cut = enc[:prompt_len]
+        dec = tokenizer.decode(cut)
+        results.append((dec, len(cut)))
+    return results
     
 
 def sharegpt_workload(
