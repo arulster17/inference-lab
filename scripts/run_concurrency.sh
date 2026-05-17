@@ -9,7 +9,7 @@ fi
 rm -rf $OUTPUT_DIR
 mkdir -p $OUTPUT_DIR
 
-for c in 128 256; do
+for c in 1 2 4 8 16 32 64 128 256; do
     echo "Running concurrency=$c..."
     start=$(date +%s)
     # python -m experiments.runner --concurrency $c --output $OUTPUT_DIR/c${c}.json
