@@ -2,6 +2,8 @@ import json
 import matplotlib.pyplot as plt
 from pathlib import Path
 import argparse
+from matplotlib.ticker import ScalarFormatter
+  
 
 
 def load_results(results_dir: str) -> dict:
@@ -22,6 +24,8 @@ def plot_ttft(ax, data: dict):
     ax.plot(x, [data[c]["ttft_p99"] * 1000 for c in x], label="p99")
 
     ax.set_xlabel("Concurrency")
+    ax.set_xscale('log', base=2)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
     ax.set_ylabel("TTFT (ms)")
     ax.set_title("TTFT vs Concurrency")
     ax.legend()
@@ -35,6 +39,8 @@ def plot_itl(ax, data: dict):
     ax.plot(x, [data[c]["itl_p99"] * 1000 for c in x], label="p99")
 
     ax.set_xlabel("Concurrency")
+    ax.set_xscale('log', base=2)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
     ax.set_ylabel("ITL (ms)")
     ax.set_title("ITL vs Concurrency")
     ax.legend()
@@ -47,6 +53,8 @@ def plot_throughput(ax, data: dict):
     ax.plot(x, [data[c]["throughput_tps"] for c in x], marker='o')
 
     ax.set_xlabel("Concurrency")
+    ax.set_xscale('log', base=2)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
     ax.set_ylabel("Throughput (tokens/s)")
     ax.set_title("Throughput vs Concurrency")
     ax.grid(True)
