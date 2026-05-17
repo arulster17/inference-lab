@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
-OUTPUT_DIR=${1:-results/concurrency_baseline}
+OUTPUT_DIR=${1}
+if [ -z "$OUTPUT_DIR" ]; then
+    echo "Usage: bash scripts/run_concurrency.sh <output_dir>"
+    exit 1
+fi
+
+rm -rf $OUTPUT_DIR
 mkdir -p $OUTPUT_DIR
 
 for c in 1 2 4 8 16 32 64; do
