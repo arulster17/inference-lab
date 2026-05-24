@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 OUTPUT_DIR=${1}
-CONFIG=${2
+CONFIG=${2}
 
 }
 pkill -f "vllm serve" || true
