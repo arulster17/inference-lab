@@ -5,4 +5,4 @@ CONFIG=${2}
 
 pkill -f "vllm serve" || true
 python serving/launch.py $CONFIG
-bash scripts/run_concurrency.sh results/$OUTPUT_DIR
+bash scripts/run_concurrency.sh results/$OUTPUT_DIR $CONFIG

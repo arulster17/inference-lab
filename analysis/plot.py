@@ -9,11 +9,11 @@ from matplotlib.ticker import ScalarFormatter
 def load_results(results_dir: str) -> dict:
     # load each file, return dict of {concurrency: metrics}
     results = {}
-    for path in sorted(Path(results_dir).glob("*.json")):                                                                      
+    for path in sorted(Path(results_dir).glob("c*.json")):                                                                      
         with open(path) as f:
-            result = json.load(f)
-        c = result["config"]["concurrency"]
-        results[c] = result["metrics"]
+            metrics = json.load(f)
+        c = int(path.stem[1:])
+        results[c] = metrics
     return results
 
 def plot_ttft(ax, data: dict):

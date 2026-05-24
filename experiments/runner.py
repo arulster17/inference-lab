@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import argparse
+import yaml
 
 from pathlib import Path
 
@@ -62,17 +63,31 @@ def run_experiment(config: dict) -> dict:
 
 
     # 5. return
-    return {"config": config, "metrics": metrics}
+    return metrics
 
-def save_results(results: dict, output_path: str) -> None:
+def save_config(config: dict, vllm_config_path: str, output_dir: str) -> None:
+    config_path = Path(output_dir) / "config.json"
+    if config_path.exists():
+          return
+    with open(vllm_config_path) as f:
+        vllm_config = yaml.safe_load(f)
+    combined = {
+        "benchmark": {k: v for k, v in config.items() if k not in ("concurrency", "base_url")},
+        "server": vllm_config
+    }
+    with open(config_path, "w") as f:
+        json.dump(combined, f, indent=2)
+
+def save_results(metrics: dict, output_path: str) -> None:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as file:
-        json.dump(results, file)
+        json.dump(metrics, file)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--concurrency", type=int, required=True)
     parser.add_argument("--output", type=str, required=True)
+    parser.add_argument("--vllm-config", type=str, required=True)
     args = parser.parse_args()
 
     config = {
@@ -80,13 +95,14 @@ def main():
         "model": "meta-llama/Llama-3.1-8B-Instruct",
         "workload": "synthetic",
         "num_requests": 4096,
-        "prompt_len": 512,
-        "max_tokens": 256,
+        "prompt_len": 2048,
+        "max_tokens": 512,
         "concurrency": args.concurrency
     }
     
-    results = run_experiment(config)
-    save_results(results, args.output)
+    metrics = run_experiment(config)
+    save_config(config, args.vllm_config, str(Path(args.output).parent))
+    save_results(metrics, args.output)
 
 if __name__ == "__main__":
     main()
