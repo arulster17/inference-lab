@@ -6,7 +6,7 @@ Each post builds on the previous. All experiments run on RunPod (single A100 80G
 |---|-------|--------|-------|
 | 1 | LLM Inference Basics | Posted | Autoregressive generation, KV cache, why memory is the binding constraint |
 | 2 | PagedAttention | Draft | OS virtual memory analogy, physical vs logical blocks, eliminating fragmentation |
-| 3 | Continuous Batching and the Scheduler | Draft | Naive batching problems, continuous batching, prefill vs decode, scheduler (FCFS, admission, preemption), chunked prefill as the default v1 solution |
+| 3 | Continuous Batching and the Scheduler | Posted | Naive batching problems, continuous batching, prefill vs decode, scheduler (FCFS, admission, preemption), chunked prefill as the default v1 solution |
 | 4 | Baseline Setup and First Measurements | Planned | vLLM in practice, benchmark methodology, TTFT/ITL/throughput, concurrency findings |
 | 5 | TBD | Planned | TBD |
 | 6 | Prefix Caching | Planned | Copy-on-write from PagedAttention, shared prefix workloads, measured results |
