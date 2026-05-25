@@ -87,6 +87,8 @@ async def run_benchmark(
   ) -> list[RequestResult]:
     
     sem = asyncio.Semaphore(concurrency)
+    total = len(requests)
+    completed = 0
 
     async def bounded_request(prompt: str, prompt_tokens: int, request_id: str) -> RequestResult:
         async with sem:
@@ -98,9 +100,16 @@ async def run_benchmark(
                                                 max_tokens=max_tokens, 
                                                 request_id=request_id)
         
+    async def tracked_request(prompt: str, prompt_tokens: int, request_id: str) -> RequestResult:
+        nonlocal completed
+        result = await bounded_request(prompt, prompt_tokens, request_id)
+        completed += 1
+        print(f"\r  {completed}/{total} ({completed/total*100:.0f}%)", end="", flush=True)
+        return result
     
     async with aiohttp.ClientSession() as session:
-        tasks = [bounded_request(pr[0], pr[1], f"req-{req_id}") for req_id, pr in enumerate(requests)]
+        tasks = [tracked_request(pr[0], pr[1], f"req-{req_id}") for req_id, pr in enumerate(requests)]
         results = await asyncio.gather(*tasks)
+        print()
         return results
         
