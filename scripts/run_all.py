@@ -18,8 +18,8 @@ output_folder = sys.argv[3]
 config = sys.argv[4]
 key = "~/.ssh/id_ed25519"
 
-ssh = ["ssh", "-t", f"root@{ip}", "-p", port, "-i", key]
-scp = ["scp", "-P", port, "-i", key]
+ssh = ["ssh", "-t", "-o", "StrictHostKeyChecking=no", f"root@{ip}", "-p", port, "-i", key]
+scp = ["scp", "-o", "StrictHostKeyChecking=no", "-P", port, "-i", key]
 
 print(f"Starting full experiment pipeline on {ip}:{port}")
 
