@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 import yaml
+import numpy as np
 
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from datasets import load_dataset
 
 from benchmark.client import run_benchmark
 from benchmark.workload import synthetic_workload, sharegpt_workload
-from benchmark.metrics import compute_metrics
+from benchmark.metrics import compute_metrics, collect_raw
 
 def run_experiment(config: dict) -> dict:
     # 1. load tokenizer
@@ -60,10 +61,11 @@ def run_experiment(config: dict) -> dict:
 
     # 4. compute metrics
     metrics = compute_metrics(results=results, total_duration_s=total_duration_s)
+    raw = collect_raw(results=results)
 
 
     # 5. return
-    return metrics
+    return metrics, raw
 
 def save_config(config: dict, vllm_config_path: str, output_dir: str) -> None:
     config_path = Path(output_dir) / "config.json"
@@ -100,9 +102,10 @@ def main():
         "concurrency": args.concurrency
     }
     
-    metrics = run_experiment(config)
+    metrics, raw = run_experiment(config)
     save_config(config, args.vllm_config, str(Path(args.output).parent))
     save_results(metrics, args.output)
+    np.savez(args.output.replace(".json", ".npz"), **raw)
 
 if __name__ == "__main__":
     main()

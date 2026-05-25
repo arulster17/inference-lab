@@ -29,6 +29,6 @@ run("Copying .env to pod...",         scp + [".env", f"root@{ip}:~/inference-lab
 run("Installing dependencies...",     ssh + ["cd inference-lab && bash setup/install.sh"])
 run("Running experiment...",          ssh + [f"cd inference-lab && bash scripts/run_experiment.sh {output_folder} {config}"])
 run("Copying results locally...",     scp + ["-r", f"root@{ip}:~/inference-lab/results/{output_folder}", f"results/{output_folder}"])
-run("Plotting...",                    ["python", "analysis/plot.py", "--results", f"results/{output_folder}"])
+run("Plotting...",                    ["python", "analysis/plot.py", "--results", f"results/{output_folder}", "--histogram"])
 
 print("\nDone!")
