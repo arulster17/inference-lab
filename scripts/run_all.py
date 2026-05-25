@@ -26,7 +26,7 @@ print(f"Starting full experiment pipeline on {ip}:{port}")
 run("Clearing old files on pod...",   ssh + ["rm -rf inference-lab"])
 run("Cloning repo on pod...",         ssh + ["git clone --branch 04-baseline https://github.com/arulster17/inference-lab.git"])
 run("Copying .env to pod...",         scp + [".env", f"root@{ip}:~/inference-lab/"])
-run("Installing dependencies...",     ssh + ["cd inference-lab && bash setup/install.sh"])
+run("Installing dependencies...",     ssh + ["cd inference-lab && bash setup/install.sh"], quiet=True) # don't print dependency stuff
 run("Checking network volume...",     ssh + ["ls /workspace"])
 run("Running experiment...",          ssh + [f"cd inference-lab && bash scripts/run_experiment.sh {output_folder} {config}"])
 run("Copying results locally...",     scp + ["-r", f"root@{ip}:~/inference-lab/results/{output_folder}", f"results/{output_folder}"])
