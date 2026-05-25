@@ -9,7 +9,7 @@ from matplotlib.ticker import ScalarFormatter
 def load_results(results_dir: str) -> dict:
     # load each file, return dict of {concurrency: metrics}
     results = {}
-    for path in sorted(Path(results_dir).glob("c*.json")):                                                                      
+    for path in sorted(Path(results_dir).glob("c[0-9]*.json")):                                                                      
         with open(path) as f:
             metrics = json.load(f)
         c = int(path.stem[1:])
