@@ -44,7 +44,8 @@ pod = runpod.create_pod(name=f"inference-lab-{output_folder}",
                         gpu_count=1, 
                         container_disk_in_gb=50, 
                         ports="22/tcp",
-                        network_volume_id=args.volume_id,)
+                        network_volume_id=args.volume_id,
+                        cloud_type="SECURE",)
 
 pod_id = pod["id"]
 print(f"Pod created: {pod_id}")

@@ -4,9 +4,9 @@ import os
 
 os.environ["PYTHONUNBUFFERED"] = "1"
 
-def run(label, cmd):
+def run(label, cmd, quiet=False):
     print(f"\n>>> {label}")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL if quiet else None)
 
 if len(sys.argv) != 5:
     print("Usage: python scripts/run_all.py <ip> <port> <output_folder> <vllm-config>")
