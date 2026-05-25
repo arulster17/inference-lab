@@ -3,15 +3,10 @@ import sys
 import time
 import subprocess
 import runpod
+import argparse
 from dotenv import load_dotenv
 
 load_dotenv()
-
-SSH_KEY = "~/.ssh/id_ed25519"
-POD_NAME = "inference-lab"
-IMAGE = "runpod/pytorch:2.2.0-py3.10-cuda12.1.1-devel-ubuntu22.04"
-GPU_TYPE = "NVIDIA A100-SXM4-80GB"
-
 
 def get_ssh_info(pod):
     ports = (pod.get("runtime") or {}).get("ports") or []
@@ -33,19 +28,23 @@ def wait_for_running(pod_id):
         time.sleep(3)
 
 
-if len(sys.argv) != 3:
-    print("Usage: python scripts/run_pod.py <output_folder> <vllm-config>")
-    sys.exit(1)
+parser = argparse.ArgumentParser()
+parser.add_argument("output_folder", type=str)
+parser.add_argument("config", type=str)
+parser.add_argument("--volume-id", type=str, default=None)
 
+args = parser.parse_args()
+output_folder = args.output_folder
+config = args.config
 runpod.api_key = os.environ["RUNPOD_API_KEY"]
-output_folder, config = sys.argv[1], sys.argv[2]
 
-pod = runpod.create_pod(name=POD_NAME, 
-                        image_name=IMAGE, 
-                        gpu_type_id=GPU_TYPE, 
+pod = runpod.create_pod(name=f"inference-lab-{output_folder}", 
+                        image_name="runpod/pytorch:2.2.0-py3.10-cuda12.1.1-devel-ubuntu22.04", 
+                        gpu_type_id="NVIDIA A100-SXM4-80GB", 
                         gpu_count=1, 
                         container_disk_in_gb=50, 
-                        ports="22/tcp")
+                        ports="22/tcp",
+                        network_volume_id=args.volume_id,)
 
 pod_id = pod["id"]
 print(f"Pod created: {pod_id}")
