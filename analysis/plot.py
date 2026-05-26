@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 from matplotlib.ticker import ScalarFormatter
 import numpy as np
+import scipy
   
 
 
@@ -12,9 +13,9 @@ def load_results(results_dir: str) -> dict:
     results = {}
     for path in sorted(Path(results_dir).glob("c[0-9]*.json")):                                                                      
         with open(path) as f:
-            metrics = json.load(f)
+            data = json.load(f)
         c = int(path.stem[1:])
-        results[c] = metrics
+        results[c] = data["metrics"] if "metrics" in data else data
     return results
 
 def load_raw(results_dir: str) -> dict:
@@ -68,15 +69,23 @@ def plot_throughput(ax, data: dict):
     ax.grid(True)
 
 
-def plot_itl_histograms(raw: dict):
-    concurrencies = sorted(raw.keys())
-    n = len(concurrencies)
-    fig, axes = plt.subplots(1, n, figsize=(4 * n, 4))
-    for ax, c in zip(axes, concurrencies):
-        ax.hist(raw[c]["itl"] * 1000, bins=100)
-        ax.set_title(f"c={c}")
-        ax.set_xlabel("ITL (ms)")
-    axes[0].set_ylabel("Count")
+def plot_itl_kde(raw1: dict, raw2: dict, label1: str, label2: str, c: int = 256):
+    from scipy.stats import gaussian_kde
+    fig, ax = plt.subplots(figsize=(6, 4))
+    combined = np.concatenate([raw1[c]["itl"] * 1000, raw2[c]["itl"] * 1000])
+    xlim = np.percentile(combined, 99.5)
+    x = np.linspace(0, xlim, 1000)
+    for raw, label in [(raw1, label1), (raw2, label2)]:
+        data = raw[c]["itl"] * 1000
+        data = data[data <= xlim]
+        kde = gaussian_kde(data)
+        ax.plot(x, kde(x), label=label)
+        ax.fill_between(x, kde(x), alpha=0.3)
+    ax.set_xlim(0, xlim)
+    ax.set_title(f"ITL Distribution (c={c})")
+    ax.set_xlabel("ITL (ms)")
+    ax.set_ylabel("Density")
+    ax.legend()
     plt.tight_layout()
     return fig
 
@@ -85,8 +94,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", type=str, required=True)
     parser.add_argument("--histogram", action="store_true")
+    parser.add_argument("--compare", type=str, default=None)
+    parser.add_argument("--label1", type=str)
+    parser.add_argument("--label2", type=str)
+
     args = parser.parse_args()
     data = load_results(args.results)
+
+
 
     prefix =  Path("analysis") / Path(args.results).name
     prefix.mkdir(parents=True, exist_ok=True)
@@ -103,8 +118,9 @@ def main():
     plt.savefig(prefix / "throughput.png")
 
     if args.histogram:
-        raw = load_raw(args.results)
-        fig = plot_itl_histograms(raw)
+        raw1 = load_raw(args.results)
+        raw2 = load_raw(args.compare)
+        fig = plot_itl_kde(raw1, raw2, args.label1, args.label2)
         fig.savefig(prefix / "itl_histogram.png")
 
 if __name__ == "__main__":
