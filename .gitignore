@@ -12,8 +12,7 @@ venv/
 env/
 
 # Results (can be large)
-# results/
-# !results/.gitkeep
+results/**/*.npz
 
 # Blog notes
 blogs/blognotes
