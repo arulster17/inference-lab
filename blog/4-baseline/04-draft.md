@@ -1,49 +1,39 @@
 # Skeleton
 
-1. **Intro** — we have the theory; now we need a rigorous benchmark to measure; this post builds the harness and takes first measurements, then uses the same harness to probe chunked prefill
+1. **Intro** — theory is done; now we need to measure; this post builds the benchmark harness, takes first baseline measurements, then uses the harness to probe chunked prefill
 2. **Setup** — hardware, model, vLLM version; link GitHub
 3. **Benchmark methodology** — closed-loop, synthetic workload, why 4096 requests, metrics
 4. **Baseline results** — throughput saturation, TTFT/ITL tradeoff, the operating point question
-5. **The harness in action: chunked prefill** — blog 3 predicted chunked prefill affects ITL distribution; p50/p99 miss the real story; ITL distribution shows bimodal vs unimodal; throughput cost; the tradeoff
+5. **The harness in action: chunked prefill** — switch to 2048-token prompts; ITL distribution shows bimodal vs unimodal; TTFT cost; the tradeoff
 6. **What's next** — harness is the foundation; prefix caching next
 
 ---
-
+    
 # Baseline Setup and First Measurements
 
-The first three posts covered the theory: autoregressive generation, the KV cache, PagedAttention, continuous batching, and the scheduler. Now it's time to measure. Before optimizing anything, we need a rigorous way to measure it — a benchmark harness that controls the variables, collects the right metrics, and produces reproducible results. This post builds that harness, takes the first baseline measurements, and then uses it to test one of the predictions from last post: that chunked prefill changes the shape of inter-token latency.
+Optimization without measurement is just guessing. Before we can say that prefix caching cuts TTFT by 40% or that quantization costs 5% throughput, we need a controlled way to measure it: a benchmark harness that holds the right variables fixed, collects the right metrics, and produces results we can reproduce and compare across configurations. This post builds that harness, takes the first baseline measurements, and then uses it to test one of the predictions from the last post: that chunked prefill changes the shape of inter-token latency.
 
 ---
 
 ## Setup
 
-All experiments run on a single A100 80GB SXM on RunPod, serving Llama 3.1 8B Instruct with vLLM 0.19.0. The model runs on a single GPU in FP16, with prefix caching disabled so that shared patterns in the workload don't inflate results. The full server config and benchmark code are in the [inference-lab repo](https://github.com/arulster17/inference-lab).
+All experiments run on a single A100 80GB SXM on RunPod, serving Llama 3.1 8B Instruct with vLLM 0.19.0. The model runs in FP16 with prefix caching disabled. The full server config and benchmark code are in the [inference-lab repo](https://github.com/arulster17/inference-lab).
 
 ---
 
 ## Benchmark methodology
 
-### Workload
+We use a *closed-loop* benchmark: a fixed pool of requests with a cap on how many can be in flight at once. In production, requests arrive at some rate regardless of what the server is doing. Closed-loop ignores that arrival process and directly controls server load, which makes it the right tool for mapping the throughput-latency curve. Each request uses a 512-token prompt and 256-token maximum output. Fixing both lengths means concurrency is the only variable we are changing.
 
-Each request consists of a 512-token synthetic prompt and a 256-token maximum output. Prompts are randomly generated with a unique sequence per request. Fixed lengths let us isolate concurrency as the only variable — if prompt lengths varied, differences in results could come from the mix of long and short prompts landing in each batch rather than from concurrency itself.
-
-### Traffic simulation
-
-We use a *closed-loop* benchmark: we send a fixed pool of requests and cap how many can be in flight at once. When one request finishes, the next starts immediately, always keeping exactly N requests active. This is not how real traffic arrives — in production, requests come in at some rate regardless of what the server is doing. But for mapping the throughput-latency curve, closed-loop is the right tool. It gives direct control over server load and produces clean, reproducible results at each concurrency level.
-
-We sweep concurrency across 9 levels: 1, 2, 4, 8, 16, 32, 64, 128, and 256.
-
-### Metrics
+We sweep across 9 concurrency levels: 1, 2, 4, 8, 16, 32, 64, 128, and 256.
 
 Three metrics are tracked per run:
 
-- **TTFT (time to first token)**: time from when the HTTP request is sent to when the first output token arrives. The clock starts after the request is actually dispatched to the server, not from when it entered a client-side queue. At low concurrency this reflects prefill time; at high concurrency it also captures how long a request waits in the scheduler queue before prefill even begins.
+- **TTFT (time to first token)**: how long until the first output token arrives. At low concurrency this is mostly prefill time; at high concurrency it also includes time spent waiting in the scheduler queue.
+- **ITL (inter-token latency)**: time between consecutive output tokens.
+- **Throughput**: total output tokens per second across all requests.
 
-- **ITL (inter-token latency)**: time between consecutive output tokens in the stream. At high concurrency, more requests share each decode step, so each step takes longer.
-
-- **Throughput**: total output tokens divided by total wall clock time, in tokens per second.
-
-We report p50, p95, and p99 for the latency metrics. p99 with too few samples is just the single worst request — to get stable percentiles we run 4096 requests per concurrency level.
+We report the 50th, 95th, and 99th percentiles rather than the mean, which is skewed by outliers and obscures the typical experience. The 50th percentile tells us what a typical request sees; the 95th and 99th tell us about the tail, which matters because even a small fraction of requests with very high latency translates to a bad user experience in practice. The gap between the 50th and 99th percentile is also informative on its own: a wide gap means the system is inconsistent, even if the median looks fine. We run 4096 requests per level to keep the tail percentiles stable.
 
 ---
 
@@ -53,72 +43,74 @@ We report p50, p95, and p99 for the latency metrics. p99 with too few samples is
 
 ![Throughput vs Concurrency](../../analysis/baseline/throughput.png)
 
-Throughput rises steeply from c=1 to around c=128, then flattens. At c=1 the server generates around 90 tokens per second — a single request's decode steps don't produce enough work to keep the GPU's thousands of CUDA cores busy. As concurrency increases, the scheduler batches more requests into each forward pass and GPU utilization climbs. By c=128, throughput has saturated at around 1880 tokens per second. Running at c=256 adds essentially nothing further.
+Throughput rises steeply from c=1 to around c=128, then flattens. At c=1, the server generates around 90 tokens per second. A single request's decode steps do not produce enough arithmetic work to keep the GPU's thousands of CUDA cores busy, so most of the hardware sits idle. As concurrency increases, the scheduler batches more requests into each forward pass, GPU utilization climbs, and throughput rises accordingly. By c=128, throughput has saturated at around 1880 tokens per second. Once every forward pass is already using the GPU's compute and memory bandwidth to their limits, adding more requests to the batch cannot increase the rate at which tokens are produced. Running at c=256 adds essentially nothing further.
 
-This is the core payoff of batching: a single A100 serving one request at a time is roughly 20x less efficient than the same hardware serving 128 concurrent requests.
+This is the core payoff of batching: the same A100 serving one request at a time is roughly 20x less efficient than when serving 128 concurrent requests.
 
 ### Latency
 
 ![TTFT and ITL vs Concurrency](../../analysis/baseline/ttft_itl.png)
 
-The throughput gain comes at a cost.
+TTFT and ITL respond to concurrency in very different ways.
 
-**TTFT** stays relatively flat through c=64 for the median — at c=32, p50 TTFT is under 100ms; at c=64, it's still only 150ms. But tail latency is already a warning sign: p99 TTFT at c=64 has crossed 1.2 seconds. At c=128 the cliff arrives: median TTFT jumps to 2.5 seconds. By c=256 the median request waits over 13 seconds for its first token, and the p50 and p95 lines converge — when the system is severely overloaded, even average requests are stuck in a long queue.
+**TTFT** stays nearly flat through c=64, then cliffs. At c=1 the median is around 20ms; by c=64 it has only crept up to 150ms. Between c=64 and c=128 it jumps to 2.5 seconds, and at c=256 the p50, p95, and p99 lines have converged above 13 seconds — even typical requests wait that long for their first token.
 
-**ITL** grows more smoothly. Each decode step is shared across all active requests, so each step takes proportionally longer as concurrency rises. At c=1, median ITL is around 11ms. At c=64 it is around 24ms — still acceptable. At c=256 it reaches 36ms, meaning a 256-token response takes around 9 seconds to stream out after the first token arrives.
+The shape comes from a phase change at saturation:
 
----
+- **Below saturation (c ≤ ~64).** A new request joins the next forward pass immediately; there is no real queue. TTFT is roughly the duration of one forward pass. That duration barely grows with batch size when the GPU has slack — at small batches the pass is overhead-dominated, not compute- or bandwidth-bound. Adding sequences to the batch is nearly free until the GPU is actually saturated, so TTFT only creeps up.
 
-## The tradeoff
+- **Past saturation (c ≥ ~128).** Throughput has plateaued, which means the GPU physically cannot serve all in-flight requests per step. The scheduler admits new requests only as fast as old ones finish, and the rest sit in vLLM's internal `waiting` list. TTFT is now dominated by that queue wait. Roughly, if `M` is how many requests the GPU can actively decode in parallel and the completion rate is throughput divided by output tokens (≈ 7 reqs/sec here), then each new request enters the back of the queue and waits for `(C − M)` requests to finish before being admitted. Wait time becomes nearly deterministic: every request faces the same queue depth. At c=128 that depth is small (~8), and per-completion variance still affects each request's wait noticeably, so the percentiles stay spread out. At c=256 the depth is ~224 — large enough that variance in any single completion averages out across many events, so every request waits roughly the same amount and the p50, p95, and p99 lines collapse onto each other.
 
-Throughput is maximized around c=128, but running there means median TTFT has already reached 2.5 seconds — unusable for interactive applications. At c=256, throughput barely moves while latency worsens further.
+So the TTFT cliff isn't caused by per-step duration suddenly exploding. It's caused by crossing the saturation point and entering a regime where requests pile up in an internal queue that grows with how far past saturation the system is pushed.
 
-The right operating point depends on your latency requirements. A batch processing pipeline with no latency SLO should run at high concurrency to maximize throughput. An interactive chat application can run at c=64 and still capture around 95% of peak throughput, with p95 TTFT at 255ms — a natural sweet spot at the knee of the curve. Applications with stricter p99 requirements need to drop to c=32 or below.
+**ITL** grows more smoothly. Each decode step is shared across all active requests, so the cost is spread equally. Median ITL roughly doubles from 11ms at c=1 to 24ms at c=64, and reaches 36ms at c=256.
+
+### The operating point
+
+Throughput saturates around c=128, but running there means median TTFT has already reached 2.5 seconds. At c=256, throughput barely moves while latency worsens further. Around c=64, throughput is at roughly 95% of its peak and p95 TTFT is still under 300ms. The curve bends here, and further increases in concurrency cost far more in latency than they return in throughput. The right operating point depends on the latency requirements of the workload.
 
 ---
 
 ## The harness in action: chunked prefill
 
-The last post explained how chunked prefill works: instead of processing a large prompt in one monolithic step, vLLM splits it into fixed-size chunks and interleaves those chunks with decode work. The prediction was that this would smooth out ITL — no more single large prefills monopolizing a decode step and causing latency spikes for every other in-flight request.
+The last post explained how chunked prefill works: instead of processing a large prompt in one monolithic prefill step, vLLM splits it into fixed-size chunks and interleaves them with decode work. The prediction was that this would smooth out ITL, since large prefills would no longer monopolize a decode step and spike the latency of every in-flight request.
 
-Let's measure it.
+We rerun the sweep with 2048-token prompts and compare chunked prefill on versus off. We use longer prompts because the effect only becomes visible when the prefill step is large relative to a decode step. At 512 tokens, a prefill completes quickly enough that it barely disturbs the decode cadence. At 2048 tokens, a single unchunked prefill dominates an entire forward pass and the disruption shows clearly in the latency distribution. We look at c=64, which sits at the knee of the throughput curve and represents a realistic operating point for a loaded server.
 
-We rerun the sweep with 2048-token prompts and compare two configs: chunked prefill enabled with `max-num-batched-tokens=512` (vLLM's default behavior), and chunked prefill explicitly disabled. Longer prompts make the effect more pronounced — at 512 tokens the difference is too small to see clearly. Everything else stays identical.
+![ITL Distribution at c=64](../../analysis/chunked_2048/itl_histogram_64.png)
 
-### What the percentiles say
+Without chunked prefill, the distribution is *bimodal*: most decode steps are fast pure-decode steps clustered around 25ms, but when a 2048-token prefill arrives it monopolizes that entire step, spiking every in-flight request's ITL to around 195ms. The p50 is low because most steps are the fast kind, and the p99 is high because of the occasional spike. Aggregate percentiles miss the story entirely, since the distribution has two modes and no requests actually experience the middle.
 
-At c=64, the summary stats look like this:
+With chunked prefill, the distribution collapses to a single peak around 65ms. Prefill work is spread across many steps, so no single step is dramatically slower than the others.
 
-|  | Chunked | No chunked |
-|---|---|---|
-| ITL p50 | 67ms | 25ms |
-| ITL p99 | 75ms | 196ms |
-| Throughput | 701 tps | 833 tps |
+The cost is TTFT. With `max_num_batched_tokens=512`, a 2048-token prompt is split into ~5 chunks, and each chunk competes with decode for that 512-token budget. Decode-first scheduling means a chunk only gets the budget decoders leave behind — at c=64 with 64 decoders, that's ~448 tokens per step for prefill. A single prefill takes roughly 5 steps to finish, and many requests are competing for those slots.
 
-The p99 result matches the prediction — chunked prefill cuts tail ITL from 196ms to 75ms. But the p50 result is surprising: chunked prefill is actually *slower* at the median, 67ms vs 25ms. How can something improve tail latency while making typical latency worse?
+At c=64, median TTFT is around 5 seconds versus around 0.4 seconds without chunked prefill. That's the honest demonstration cost of the tradeoff: what you pay in TTFT to get the bimodal ITL distribution to collapse into a single peak.
 
-### What the distribution actually looks like
+The numbers further up the concurrency sweep look catastrophic — 28 seconds at c=128, 65 seconds at c=256 — but those say less about chunked prefill than about saturation. Two effects compound:
 
-The percentiles are hiding the real story. Here is the ITL distribution at c=64:
+- `max_num_batched_tokens=512` caps total work per step at 1/4 of the baseline budget.
+- 2048-token prompts mean ~4× more prefill work per request than the 512-token baseline.
 
-![ITL Distribution](../../analysis/chunked_2048/itl_histogram_64.png)
+Together, these push the throughput plateau from 1880 tok/s at c=128 in the baseline down to ~700 tok/s at c=32 in this run:
 
-Without chunked prefill the distribution is *bimodal*: most decode steps are fast pure-decode steps clustered around 25ms, but when a 2048-token prefill lands it monopolizes that entire step, spiking every in-flight request's ITL to around 195ms. The p50 is low because most steps are the fast kind. The p99 is high because of the spike.
+![Chunked prefill throughput](../../analysis/chunked_2048/throughput.png)
 
-With chunked prefill the distribution collapses to a single peak at 67ms. There are no spikes — prefill work is spread across many steps so no single step is dramatically slower than the others. But every decode step now carries some prefill work, so the typical step is slower than the typical pure-decode step without chunking.
+So at c=256, the system is 8× past saturation, and the queue dynamics from the latency section kick in much harder. With ~32 active decode slots and a completion rate of ~2.7 reqs/sec, the simple model predicts a queue wait of `(256 − 32) / 2.7 ≈ 83` seconds — close to the observed 65 seconds. The full TTFT sweep shows the same saturation cliff as the baseline, just shifted left to c=32.
 
-Chunked prefill trades *bimodal* latency (fast steps + rare spikes) for *uniform* latency (every step is medium). Whether that's better depends entirely on what you care about. For smooth streaming, chunked prefill wins. For raw p50 ITL, it's worse.
+![Chunked prefill TTFT and ITL](../../analysis/chunked_2048/ttft_itl.png)
 
-### The throughput cost
+Two framing notes:
 
-There's also a throughput penalty. With `max-num-batched-tokens=512`, each forward pass is capped at 512 tokens. Without that cap, vLLM batches more aggressively and sustains around 830 tps at saturation. With the cap, saturation throughput drops to around 700 tps — about 16% less.
+1. The c=64 figure (~5s TTFT) is the right number for understanding the chunked-prefill tradeoff. The c=128 and c=256 figures mix in the cost of running deep into the queue regime and overstate what chunked prefill itself costs.
+2. The tight `max_num_batched_tokens=512` here is chosen to make the ITL effect clearly visible. A more realistic value (2048 or 4096) would let prefill complete in 1–2 chunks per request, and the TTFT penalty would be much smaller. Production deployments tune this knob to balance the two metrics for their workload.
 
-This is the full tradeoff: chunked prefill costs 16% throughput and raises median ITL in exchange for eliminating tail ITL spikes. For a system where streaming smoothness matters, that's a good trade. For a batch pipeline, it isn't.
+Closed-loop benchmarking also holds the queue permanently full. In real bursty traffic, request arrival has quieter periods that let pending prefills catch up, and the TTFT penalty shrinks further.
 
 ---
 
 ## What's next
 
-The harness is built and the baseline is measured. Every optimization in the rest of the series — prefix caching, quantization, speculative decoding — will be measured against these numbers on the same hardware and workload, so we can isolate exactly what each feature buys.
+The harness is built and the baseline is measured. Every optimization in the rest of the series will be measured against these numbers on the same hardware and workload, so we can isolate exactly what each feature buys.
 
 Next up: prefix caching, where vLLM reuses KV cache entries across requests that share a common prefix, dramatically cutting TTFT for workloads with repeated system prompts or few-shot examples.
