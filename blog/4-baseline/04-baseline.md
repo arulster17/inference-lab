@@ -54,32 +54,31 @@ The **ITL** also grows, as each decode step is shared across all active requests
 
 The previous post explained the basics of chunked prefill: instead of processing a large prompt in a monolithic prefill step, vLLM splits it into fixed-size chunks and interleaves them with decode work. The prediction was that this would smooth out ITL, since large prefills would no longer take priority over active decode steps and spike the latencies of all active requests.
 
-We run the sweep with 2048-token prompts and a 
+We run the sweep with 2048-token prompts and compare chunked prefill on versus off. We use longer prompts because the effect of chunked prefill is only visible when the prefill step is large relative to the decode step and `max_num_batched_tokens`. We also choose c=64, as it is at the knee of the throughput curve and is a realistic operating point.
 
 
+itl 64 histogram image here /analysis/chunked_2048/itl_histogram_64.png
 
+Without chunked prefill, the distribution is *bimodal*. Most decode steps are fast pure-decode steps clustered around 25 ms, but whenever a 2048-token prefill arrives, it monopolizes THE entire step and spikes every in-flight request's ITL to around 200 ms. This makes ITL very unpredictable in production systems, and our previous p50/p95/p99 type measurements would be unable to capture this behavior. 
 
+With chunked prefill, the distribution collapses to a single peak around 65 ms. Prefill work is spread across many steps, so no single step is dramatically slower than the rest. This matches our prediction from the previous post: chunked prefill trades a few tall ITL spikes for a higher, more stable floor.
 
+The cost is TTFT. With chunked prefill, a 2048-token prompt does not finish prefill until its chunks have been processed across several forward passes. At high concurrency those passes are interleaved with many other requests, meaning each chunk waits in the queue before it runs. At c=64, the median TTFT is around 5 seconds with chunked prefill vs ~0.4 seconds without it. `max_num_batched_tokens` controls how much prefill runs per step, and the tight limit of 512 used here makes the effect on ITL and TTFT clearly visible.
 
+ttft image
 
+Further up the sweep the TTFT numbers look even worse, as they reach ~30 seconds at c=128 and ~65 seconds at c=256, but this is due to saturation rather than the chunked prefill. The tight 512-token budget and the 4x larger prompts bring the throughput plateau down to ~700 tokens per second at just c=32, meaning the higher concurrencies are already running well past saturation, meaning their TTFT is dominated by the waiting time in the queue.
 
+throughput img
 
-The last post explained how chunked prefill works: instead of processing a large prompt in one monolithic prefill step, vLLM splits it into fixed-size chunks and interleaves them with decode work. The prediction was that this would smooth out ITL, since large prefills would no longer monopolize a decode step and spike the latency of every in-flight request.
-
-We rerun the sweep with 2048-token prompts and compare chunked prefill on versus off. We use longer prompts because the effect only becomes visible when the prefill step is large relative to a decode step. At 512 tokens, a prefill completes quickly enough that it barely disturbs the decode cadence. At 2048 tokens, a single unchunked prefill dominates an entire forward pass and the disruption shows clearly in the latency distribution. We look at c=64, which sits at the knee of the throughput curve and represents a realistic operating point for a loaded server.
-
-![ITL Distribution at c=64](../../analysis/chunked_2048/itl_histogram_64.png)
-
-Without chunked prefill, the distribution is *bimodal*: most decode steps are fast pure-decode steps clustered around 25ms, but when a 2048-token prefill arrives it monopolizes that entire step, spiking every in-flight request's ITL to around 195ms. The p50 is low because most steps are the fast kind, and the p99 is high because of the occasional spike. Aggregate percentiles miss the story entirely, since the distribution has two modes and no requests actually experience the middle.
-
-With chunked prefill, the distribution collapses to a single peak around 65ms. Prefill work is spread across many steps, so no single step is dramatically slower than the others.
-
-The cost is TTFT. With chunked prefill, a 2048-token prompt does not finish prefilling until its chunks have been processed across multiple forward passes. At high concurrency, those passes are interleaved with many other requests, so each chunk has to wait in the queue before it runs. At c=64, median TTFT with chunked prefill is around 5 seconds versus 0.4 seconds without it. This is the same tradeoff described in the last post: `max_num_batched_tokens` controls how much prefill runs per step, and smaller values reduce ITL at the cost of TTFT. The configuration here uses a tight limit to make the effect clearly visible. It is also worth noting that closed-loop benchmarking keeps the queue permanently full, so each prefill chunk always has to wait behind a full batch of active decode requests. In a real system with variable traffic, the queue drains during quieter periods and the TTFT penalty would be smaller.
+While the TTFT numbers look extremely bad, it's important to keep the following caveats in mind:
+- The tight max_num_batched_tokens=512 is chosen to exaggerate the effect of chunked prefiil. A realistic value like 2048 or 4096 would let prefill finish in fewer chunks and lower the TTFT.
+- Closed-loop benchmarking keeps the queue permanently full. Real-life traffic comes in bursts, which would give pending prefills time to catch up.
 
 ---
 
 ## What's next
 
-The harness is built and the baseline is measured. Every optimization in the rest of the series will be measured against these numbers on the same hardware and workload, so we can isolate exactly what each feature buys.
+We've now built a test harness and measured our first optimization. Every optimization in the rest of the series will be measured with the same harness, hardware, and workload, meaning we can isolate the benefits of each new feature.
 
-Next up: prefix caching, where vLLM reuses KV cache entries across requests that share a common prefix, dramatically cutting TTFT for workloads with repeated system prompts or few-shot examples.
+In the next blog, we'll look at speculative decoding, where a small draft model proposes tokens that the main model verifies in a single pass, potentially allowing the model to advance several tokens in one step. We'll see why this helps most at low concurrencies but can backfire at higher ones.
