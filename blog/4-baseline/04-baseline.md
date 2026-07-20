@@ -81,4 +81,4 @@ While the TTFT numbers look extremely bad, it's important to keep the following 
 
 We've now built a test harness and measured our first optimization. Every optimization in the rest of the series will be measured with the same harness, hardware, and workload, meaning we can isolate the benefits of each new feature.
 
-In the next blog, we'll look at speculative decoding, where a small draft model proposes tokens that the main model verifies in a single pass, potentially allowing the model to advance several tokens in one step. We'll see why this helps most at low concurrencies but can backfire at higher ones.
+The shape of throughput curve also highlights an important inefficiency: at low concurrencies, the GPU is extremely underutilized, spending almost none of its compute for the few requests. The next post covers speculative decoding, where a small draft model proposes tokens that the main model verifies in a single pass, potentially allowing the model to advance several tokens in one step. We will see how this uses idle compute at low concurencies but backfires at higher ones.
