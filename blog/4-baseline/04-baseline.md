@@ -1,3 +1,5 @@
+#
+
 # Baseline
 
 In the previous posts, we discussed the theory of how vLLM manages requests efficiently. However, without measurements, there's no way to know how much an optimization actually helps. Before we can discuss further optimizations for LLM serving, we need a benchmark harness that can quantify their impacts. In this post, we build this harness, take baseline measurements, and test chunked prefill, an optimization from the previous post.
