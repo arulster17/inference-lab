@@ -42,3 +42,9 @@ def compute_metrics(results: list[RequestResult], total_duration_s : float) -> d
         "total_requests" : total_requests,
         "successful_requests" : successful_requests
     }
+
+def collect_raw(results: list[RequestResult]) -> dict[str, np.ndarray]:
+    successful = [r for r in results if r.error is None]
+    ttft = np.array([r.ttft_s for r in successful])
+    itl = np.concatenate([r.itl_s for r in successful if r.itl_s])
+    return {"ttft": ttft, "itl": itl}

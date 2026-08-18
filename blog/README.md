@@ -6,12 +6,11 @@ Each post builds on the previous. All experiments run on RunPod (single A100 80G
 |---|-------|--------|-------|
 | 1 | LLM Inference Basics | Posted | Autoregressive generation, KV cache, why memory is the binding constraint |
 | 2 | PagedAttention | Draft | OS virtual memory analogy, physical vs logical blocks, eliminating fragmentation |
-| 3 | Continuous Batching and the Scheduler | Draft | Naive batching problems, continuous batching, prefill vs decode, scheduler (FCFS, admission, preemption), chunked prefill as the default v1 solution |
+| 3 | Continuous Batching and the Scheduler | Posted | Naive batching problems, continuous batching, prefill vs decode, scheduler (FCFS, admission, preemption), chunked prefill as the default v1 solution |
 | 4 | Baseline Setup and First Measurements | Planned | vLLM in practice, benchmark methodology, TTFT/ITL/throughput, concurrency findings |
-| 5 | TBD | Planned | TBD |
+| 5 | Speculative Decoding | Planned | Draft-model / n-gram speculation, spending idle low-concurrency compute to cut latency, when it helps and when it doesn't |
 | 6 | Prefix Caching | Planned | Copy-on-write from PagedAttention, shared prefix workloads, measured results |
 | 7 | Quantization | Planned | FP16 vs INT8 vs INT4, throughput vs quality tradeoff, measured results |
-| 8 | Speculative Decoding | Planned | Draft model setup, when it helps and when it doesn't |
 
 ---
 
@@ -56,6 +55,6 @@ Largely orthogonal to the v0/v1 split. Both versions support similar backends (A
 
 **Gap**: current synthetic workload uses random prompts with no shared prefixes — prefix caching will show no benefit on it. Need a new workload with a shared system prompt to demonstrate cache hits.
 
-### Speculative Decoding (Blog 8)
+### Speculative Decoding (Blog 5)
 
-Also orthogonal to v0/v1. Both versions support draft-model speculation and n-gram speculation. The post should explain when speculative decoding helps (low concurrency, predictable outputs) and when it doesn't (high concurrency, diverse outputs), with benchmarks on v1. Draft model setup is the main configuration complexity.
+Also orthogonal to v0/v1. Both versions support draft-model speculation and n-gram speculation. The post should explain when speculative decoding helps (low concurrency, predictable outputs) and when it doesn't (high concurrency, diverse outputs), with benchmarks on v1. Draft model setup is the main configuration complexity. Blog 4 sets up the natural hook: at low concurrency the GPU is compute-idle (~20x underutilized at c=1), and speculative decoding is precisely the technique that spends that idle compute to reduce single-stream latency.

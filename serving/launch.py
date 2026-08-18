@@ -14,6 +14,9 @@ def build_command(config: dict) -> list[str]:
     for key,val in config.items():
         if key == 'model':
             continue
+        if isinstance(val, bool):
+            command.append(f"--{'no-' if not val else ''}{key}")
+            continue
         command.append("--" + key)
         command.append(str(val))
     
@@ -54,12 +57,12 @@ def main():
     # we want to test the health, so use popen instead of run for nonblocking
 
     base_url = f"http://localhost:{config['port']}"
-    process = subprocess.Popen(command, stdout=sys.stdout, stderr=sys.stderr)
+    log = open("vllm.log", "w")
+    process = subprocess.Popen(command, stdout=log, stderr=log)
     wait_for_server(base_url)
     send_warmup_request(base_url, config["model"])
 
-    # make sure program doesn't exit
-    process.wait()
+    
 
 
 if __name__ == "__main__":
