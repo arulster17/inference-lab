@@ -25,18 +25,17 @@ RunPod, serving Llama 3.1 8B with vLLM.
 
 ## Blog series: LLM Serving — From Fundamentals to Optimization
 
-Each post builds on the last.
+Each post builds on the last. Full status and notes in [`blog/README.md`](blog/README.md).
 
 | # | Title | Status |
 |---|-------|--------|
 | 1 | [LLM Inference Basics](blog/1-basics/01-inference-basics.md) — autoregressive generation, the KV cache, why memory is the binding constraint | [Posted](https://medium.com/@arulster17/inference-basics-and-why-model-serving-is-hard-51814cb6b069) |
 | 2 | [PagedAttention](blog/2-paged-attention/02-paged-attention.md) — the OS virtual memory analogy, physical vs. logical blocks, eliminating fragmentation | Draft |
-| 3 | [Continuous Batching and the Scheduler](blog/3-batching-and-scheduler/03-continuous-batching.md) — prefill vs. decode, how requests move through the system | Draft |
-| 4 | Baseline Setup and First Measurements — vLLM in practice, benchmark methodology, TTFT/ITL/throughput | Planned |
-| 5 | Chunked Prefill — what it changes, measured results | Planned |
+| 3 | [Continuous Batching and the Scheduler](blog/3-batching-and-scheduler/03-continuous-batching.md) — naive batching, continuous batching, prefill vs. decode, chunked prefill | Posted |
+| 4 | [Baseline Setup and First Measurements](blog/4-baseline/04-baseline.md) — vLLM in practice, benchmark methodology, TTFT/ITL/throughput | Draft |
+| 5 | Speculative Decoding — spending idle low-concurrency compute to cut latency | Planned |
 | 6 | Prefix Caching — copy-on-write from PagedAttention, shared-prefix workloads | Planned |
 | 7 | Quantization — FP16 vs. INT8 vs. INT4, throughput vs. quality | Planned |
-| 8 | Speculative Decoding — when it helps, when it doesn't | Planned |
 
 ## Running it
 
