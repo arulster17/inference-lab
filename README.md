@@ -10,17 +10,22 @@ RunPod, serving Llama 3.1 8B with vLLM.
 
 ## What's here
 
-- **`serving/`** — YAML-driven launcher (`launch.py`) that starts a vLLM
-  server from a config file, waits for health, and sends a warmup request.
+- **`serving/`** — YAML-driven launcher (`launch.py`) that starts a vLLM server
+  from a config, waits for health, and sends a warmup request. Configs pair a
+  baseline against one changed knob (`baseline.yaml` vs
+  `no_chunked_prefill.yaml`).
 - **`benchmark/`** — async load-testing client. Streams chat completions
-  concurrently (bounded by a semaphore), and records per-request TTFT
+  concurrently (bounded by a semaphore), recording per-request TTFT
   (time-to-first-token) and ITL (inter-token latency).
-- **`analysis/`** — turns raw benchmark JSON into plots (p50/p95/p99 latency,
-  throughput vs. concurrency).
-- **`experiments/`** — sweep runner that drives the benchmark client across
-  configurations (e.g. concurrency 1 → 64, chunked vs. unchunked prefill).
-- **`results/`** — recorded runs (`results_clean`, `results-chunked`,
-  `results-unchunked`) used in the blog posts.
+- **`experiments/`** — `runner.py`, one benchmark point: builds the workload,
+  drives the client at a given concurrency, writes metrics JSON plus raw
+  per-request timings as `.npz`.
+- **`scripts/`** — pod automation. `run_all.py` is the full pipeline: clone on a
+  RunPod box, install, sweep concurrency 4→256, copy results back, plot.
+- **`analysis/`** — `plot.py`: TTFT/ITL percentiles and throughput vs.
+  concurrency, plus ITL KDE comparisons between two runs.
+- **`results/`** — recorded sweeps (`baseline`, `chunked_2048`,
+  `no_chunked_2048`, …) used in the blog posts.
 - **`blog/`** — the write-ups. See below.
 
 ## Blog series: LLM Serving — From Fundamentals to Optimization
@@ -39,17 +44,38 @@ Each post builds on the last. Full status and notes in [`blog/README.md`](blog/R
 
 ## Running it
 
+Needs an NVIDIA GPU; everything here was run on a single A100 80GB RunPod box.
+A `.env` with `HF_TOKEN` is required to pull the Llama weights.
+
+**Whole pipeline against a pod** — clones, installs, sweeps, copies results back,
+plots:
+
 ```bash
-pip install -e .
-
-# start a vLLM server from a config
-python serving/launch.py serving/configs/baseline.yaml
-
-# run a single benchmark point against it
-python experiments/runner.py --concurrency 32 --output results/llama_c32.json
-
-# plot TTFT/ITL/throughput vs. concurrency (expects results/llama_c{1,8,32,64}.json)
-python analysis/plot.py
+python scripts/run_all.py <pod-ip> <ssh-port> baseline serving/configs/baseline.yaml
 ```
 
-Requires an NVIDIA GPU with vLLM installed; benchmarks were run on RunPod.
+**Or step by step, on the box itself:**
+
+```bash
+bash setup/install.sh
+
+# start vLLM from a config, wait for health, warm it up
+python serving/launch.py serving/configs/baseline.yaml
+
+# sweep concurrency 4 -> 256 into results/baseline/
+bash scripts/run_concurrency.sh results/baseline serving/configs/baseline.yaml
+
+# or a single point
+PYTHONPATH=. python experiments/runner.py \
+  --concurrency 32 \
+  --output results/baseline/c32.json \
+  --vllm-config serving/configs/baseline.yaml
+```
+
+**Plot a sweep** (figures land in `analysis/<run-name>/`):
+
+```bash
+python analysis/plot.py --results results/baseline
+python analysis/plot.py --results results/chunked_2048 --histogram \
+  --compare results/no_chunked_2048 --label1 chunked --label2 "no chunked"
+```
